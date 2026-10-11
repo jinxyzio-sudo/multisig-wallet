@@ -1,10 +1,15 @@
 # sui-multisig-wallet
 
-Use a Sui native 2-of-3 multisig from any dApp, like a normal browser wallet.
+Use a Sui native multisig (2-of-2 or 2-of-3) from any dApp, like a normal browser wallet.
 
 - **Desktop key**: an account in your browser wallet (Slush or OKX extension).
 - **Phone key**: an account in the OKX app (Slush's app blocks the signer page, see Known gaps).
-- **Backup key**: a recovery phrase on paper. Only used when a device is lost.
+- **Backup key** (2-of-3 only): a recovery phrase on paper, used when a device is lost.
+
+Any two different members can sign, on any device: roles in the config are labels only.
+
+With **2-of-2** there is no spare key. Losing a device is fine (restore its recovery phrase on a new
+one), but losing either recovery phrase locks the funds for good. Back up both phrases, apart.
 
 On a dApp you pick **Sui Multisig 2/3** in the wallet list. When the dApp asks for a signature:
 
@@ -100,9 +105,10 @@ In Chrome, open `chrome://extensions`, turn on Developer mode, click "Load unpac
 ### 7. Try it with a small amount
 
 1. Send 0.1 SUI to the multisig address.
-2. Open any Sui dApp and connect **Sui Multisig 2/3**. Also connect the desktop key account in Slush to the same site once.
-3. Send 0.05 SUI from the multisig to yourself through the dApp. On first use the phone asks you to confirm the address: compare it with your paper.
-4. Test the recovery path once: follow `FALLBACK_CLI.txt` with the desktop key and the backup key and send 0.01 SUI.
+2. `npm run send` and open http://127.0.0.1:8790. Connect **Sui Multisig**, send 0.05 SUI to yourself. Approve in the browser wallet, scan the QR code with the OKX app's scanner, sign. On first use the phone asks you to confirm the address: compare it with your notes.
+3. Test the recovery path once: follow `FALLBACK_CLI.txt` and send 0.01 SUI with the CLI alone.
+
+The same send page moves SUI out of the multisig at any time, without a dApp.
 
 Only after both work, move the rest. Coins, StakedSui, NFTs, LP positions and kiosk caps transfer directly. Lending positions recorded by address have to be withdrawn, moved and deposited again.
 

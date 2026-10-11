@@ -124,3 +124,22 @@ describe('signingMember', () => {
     );
   });
 });
+
+describe('2-of-2', () => {
+  const twoOfTwo = { threshold: 2, members: multisigConfig.members.filter((m) => m.role !== 'backup') };
+  const ms = loadMultisig(twoOfTwo);
+
+  it('derives the same address as the sui CLI', () => {
+    // sui keytool multi-sig-address --pks <desktop> <phone> --weights 1 1 --threshold 2
+    expect(ms.address).toBe('0xcad3f2fe48e2483003637a2363a375404372b637f94b0af6892667915c275a12');
+  });
+
+  it('needs both keys', async () => {
+    const bytes = await offlineTxBytes(ms.address);
+    const desktop = (await desktopKey.signTransaction(bytes)).signature;
+    const phone = (await phoneKey.signTransaction(bytes)).signature;
+    const combined = await combineSignatures(ms, bytes, [desktop, phone]);
+    expect((await verifyTransactionSignature(bytes, combined)).toSuiAddress()).toBe(ms.address);
+    await expect(combineSignatures(ms, bytes, [desktop])).rejects.toThrow('Signature is not valid for the provided Transaction');
+  });
+});

@@ -5,8 +5,9 @@ Use this when the extension, the phone page, the relay, GitHub or Cloudflare are
 or when the phone is lost (desktop key + paper backup key). Nothing here depends on this repo.
 Tested end to end on localnet (build -> sign x2 -> combine -> execute).
 
-You need: the sui CLI, any 2 of the 3 member keys (recovery phrases), and the multisig
-configuration (3 public keys in order, weights, threshold). The order of the public keys is part
+You need: the sui CLI, the recovery phrases of enough members to reach the threshold (both keys
+for 2-of-2, any two for 2-of-3), and the multisig configuration (all public keys in order,
+weights, threshold). The order of the public keys is part
 of the address: keep it exactly as written in config/wallet.json and on your paper backup.
 
 Work in a throwaway keystore so your normal ~/.sui is never touched.
@@ -15,11 +16,15 @@ Do this on a computer you trust, then delete the folder.
 
 0. Variables (fill in)
 ----------------------
+# Run everything below in bash. Type `bash` first: zsh (the macOS default) does not split $PKS
+# and $WEIGHTS into separate arguments, and the multisig commands then fail.
+bash
 export WORK=$HOME/sui-recovery
 export MS=0x...                  # multisig address
-export PK1=...                   # desktop public key (base64, from config/wallet.json)
-export PK2=...                   # phone public key
-export PK3=...                   # backup public key
+# All member public keys, in config order (base64, from config/wallet.json), and their weights.
+export PKS="AAAA... BBBB..."      # 2-of-2: two keys. 2-of-3: three keys.
+export WEIGHTS="1 1"             # one weight per key, same order: "1 1" or "1 1 1"
+export THRESHOLD=2
 export TO=0x...                  # where the funds should go
 export RPC=https://fullnode.mainnet.sui.io:443
 
@@ -42,7 +47,7 @@ EOF
 
 2. Check the address before anything else
 -----------------------------------------
-sui keytool multi-sig-address --pks $PK1 $PK2 $PK3 --weights 1 1 1 --threshold 2
+sui keytool multi-sig-address --pks $PKS --weights $WEIGHTS --threshold $THRESHOLD
 # multisigAddress must equal $MS. If not, the key order or a key is wrong. Stop.
 
 
@@ -85,7 +90,7 @@ export SIG2=<suiSignature from the second command>
 
 6. Combine
 ----------
-sui keytool multi-sig-combine-partial-sig --pks $PK1 $PK2 $PK3 --weights 1 1 1 --threshold 2 --sigs $SIG1 $SIG2 --json
+sui keytool multi-sig-combine-partial-sig --pks $PKS --weights $WEIGHTS --threshold $THRESHOLD --sigs $SIG1 $SIG2 --json
 export MSIG=<multisigSerialized from the output>
 
 
@@ -99,8 +104,9 @@ sui client --client.config $WORK/client.yaml execute-signed-tx --tx-bytes $TX --
 rm -rf $WORK
 
 
-Replacing a lost phone
-----------------------
-A multisig address is derived from its member keys, so a new phone key means a NEW multisig
-address. Set up the new key, put it in config/wallet.json, run `npm run address`, then use the
-steps above (desktop key + backup key) to move every asset from the old address to the new one.
+Lost device vs lost key
+-----------------------
+A lost device is not a lost key: restore its recovery phrase on a new device and keep going.
+A lost recovery phrase is a lost key. With 2-of-3, move everything to a new multisig with the two
+remaining keys (a new key means a NEW multisig address). With 2-of-2 there is no way back, which is
+why both phrases must be backed up.

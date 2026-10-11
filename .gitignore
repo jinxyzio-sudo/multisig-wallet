@@ -7,3 +7,4 @@ config/wallet.json
 test/browser/.ext/
 test/browser/.build/
 phone/dist-local/
+tools/send/dist/

@@ -31,6 +31,7 @@ execFileSync('node', ['build.mjs', '--extension'], {
   env: { ...process.env, WALLET_CONFIG: 'test/browser/wallet.e2e.json', EXT_OUT: EXT },
 });
 execFileSync('node', ['build.mjs', '--phone', '--local'], { cwd: ROOT, stdio: 'inherit' });
+execFileSync('node', ['build.mjs', '--tools'], { cwd: ROOT, stdio: 'inherit' });
 const common = { bundle: true, format: 'iife', target: ['chrome111'], logLevel: 'warning' };
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-desktop-wallet.js'), define: { __MOCK_SEED__: '1', __MOCK_NAME__: '"Mock Slush"', __MOCK_BAD_PK__: 'false' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-phone-wallet.js'), define: { __MOCK_SEED__: '2', __MOCK_NAME__: '"Mock Slush Mobile"', __MOCK_BAD_PK__: 'false' } });
@@ -49,7 +50,9 @@ const staticServer = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   const candidates = path.startsWith('/phone/')
     ? [join(ROOT, 'phone/dist-local', path.slice('/phone/'.length) || 'index.html')]
-    : [join(ROOT, 'test/browser/public', path), join(OUT, path)];
+    : path.startsWith('/send/')
+      ? [join(ROOT, 'tools/send/dist', path.slice('/send/'.length) || 'index.html')]
+      : [join(ROOT, 'test/browser/public', path), join(OUT, path)];
   const file = candidates.find((f) => existsSync(f) && statSync(f).isFile());
   if (!file) {
     res.writeHead(404).end();
@@ -148,6 +151,37 @@ try {
   await phone2.getByText('no such session').waitFor({ timeout: 15_000 });
   assert.equal(await phone2.getByRole('button', { name: 'This is my multisig, trust it' }).count(), 0);
   step('finished session is gone from the relay');
+
+  // Send page: the tool used for the first mainnet transaction.
+  const send = await context.newPage();
+  // Real browser wallets inject themselves into every page; the mock has to be added by hand.
+  await send.addInitScript({ path: join(OUT, 'decoy-desktop-wallet.js') });
+  await send.addInitScript({ path: join(OUT, 'mock-desktop-wallet.js') });
+  await send.goto('http://127.0.0.1:8790/send/');
+  await send.getByRole('button', { name: 'Connect Sui Multisig' }).click();
+  await send.getByText(MULTISIG).waitFor({ timeout: 15_000 });
+  const recipientBeforeSend = await balance(RECIPIENT);
+  await send.getByPlaceholder('Recipient 0x…').fill(RECIPIENT);
+  await send.getByPlaceholder('Amount in SUI, e.g. 0.05').fill('0.05');
+  windowPromise = approvalWindow();
+  await send.getByRole('button', { name: 'Send' }).click();
+  win = await windowPromise;
+  await win.getByText(`${RECIPIENT} receives 0.05 SUI`).waitFor({ timeout: 15_000 });
+  await win.getByRole('button', { name: 'I understand, sign with Mock Slush' }).click();
+  const sendLink = await win.locator('#phone-link').getAttribute('href', { timeout: 15_000 }).catch(async (e) => {
+    throw new Error(`no phone link; approval window says: ${await win.locator('.status').textContent()}`, { cause: e });
+  });
+  const phone3 = await context.newPage();
+  await phone3.addInitScript({ path: join(OUT, 'mock-phone-wallet.js') });
+  await phone3.goto(sendLink);
+  await phone3.getByRole('button', { name: 'I understand, sign anyway' }).click();
+  await phone3.getByText('Signed. Your computer will finish the transaction.').waitFor({ timeout: 15_000 });
+  await send.getByText('Digest:').waitFor({ timeout: 30_000 });
+  const sendDigest = await send.locator('a[href*="/tx/"]').textContent();
+  const sent = await client.core.waitForTransaction({ digest: sendDigest });
+  assert.equal(sent.Transaction.status.success, true);
+  assert.equal(await balance(RECIPIENT), recipientBeforeSend + 50_000_000n);
+  step('send page: 0.05 SUI sent through the full flow');
 
   // Setup page: only the Sui entry is offered, and it shows the real public key.
   const setup = await context.newPage();

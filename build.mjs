@@ -7,7 +7,7 @@ import { GRPC_URLS } from './src/shared/config.ts';
 
 const args = new Set(process.argv.slice(2));
 const local = args.has('--local');
-const only = args.has('--phone') ? 'phone' : args.has('--extension') ? 'extension' : 'all';
+const only = args.has('--phone') ? 'phone' : args.has('--extension') ? 'extension' : args.has('--tools') ? 'tools' : 'all';
 const configPath = process.env.WALLET_CONFIG ?? 'config/wallet.json';
 
 const common = {
@@ -60,5 +60,16 @@ async function buildPhone() {
   console.log(`phone page -> ${out}`);
 }
 
-if (only !== 'phone') await buildExtension();
-if (only !== 'extension') await buildPhone();
+async function buildTools() {
+  const out = 'tools/send/dist';
+  rmSync(out, { recursive: true, force: true });
+  mkdirSync(out, { recursive: true });
+  await build({ ...common, entryPoints: { send: 'src/tools/send.ts' }, outdir: out });
+  copyFileSync('tools/send/index.html', `${out}/index.html`);
+  copyFileSync('src/shared/ui.css', `${out}/ui.css`);
+  console.log(`send page -> ${out} (npm run send)`);
+}
+
+if (only === 'all' || only === 'extension') await buildExtension();
+if (only === 'all' || only === 'tools') await buildTools();
+if (only === 'all' || only === 'phone') await buildPhone();

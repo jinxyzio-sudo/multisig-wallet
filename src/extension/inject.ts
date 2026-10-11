@@ -79,7 +79,8 @@ async function findDesktopSigner(memberAddresses: string[]): Promise<{ wallet: S
     const account = pick(wallet.accounts);
     if (account) return { wallet, account };
   }
-  for (const wallet of preferred.length > 0 ? preferred : wallets) {
+  // Ask the configured wallet first, then the others, so a key kept in another wallet still works.
+  for (const wallet of [...preferred, ...wallets.filter((w) => w.name !== config.desktopWallet)]) {
     try {
       const account = pick((await wallet.features['standard:connect'].connect()).accounts);
       if (account) return { wallet, account };
