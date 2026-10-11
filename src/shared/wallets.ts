@@ -1,6 +1,6 @@
 import { SIGNATURE_FLAG_TO_SCHEME, type PublicKey, type SignatureScheme } from '@mysten/sui/cryptography';
 import { fromBase64, fromHex, normalizeSuiAddress } from '@mysten/sui/utils';
-import { publicKeyFromRawBytes, publicKeyFromSuiBytes } from '@mysten/sui/verify';
+import { publicKeyFromRawBytes, publicKeyFromSuiBytes, verifyPersonalMessageSignature } from '@mysten/sui/verify';
 import type { Wallet, WalletAccount } from '@mysten/wallet-standard';
 
 /**
@@ -80,4 +80,22 @@ export function accountPublicKey(account: WalletAccount): PublicKey | null {
 
 export function schemeName(pk: PublicKey): string {
   return SIGNATURE_FLAG_TO_SCHEME[pk.flag() as keyof typeof SIGNATURE_FLAG_TO_SCHEME] ?? 'unknown';
+}
+
+export const KEY_PROBE_MESSAGE = 'Reveal my public key for a multisig setup. This is not a transaction.';
+
+/**
+ * Recovers the public key from a personal-message signature, which carries the key. Used when a
+ * wallet does not expose a usable account.publicKey. Only plain keys qualify as multisig members.
+ */
+export async function publicKeyFromMessageSignature(message: Uint8Array, signature: string, address: string): Promise<PublicKey> {
+  const pk = await verifyPersonalMessageSignature(message, signature, { address });
+  if (normalizeSuiAddress(pk.toSuiAddress()) !== normalizeSuiAddress(address)) {
+    throw new Error('signature does not belong to this address');
+  }
+  const scheme = schemeName(pk);
+  if (!SCHEMES.includes(scheme as SignatureScheme)) {
+    throw new Error(`account uses ${scheme}, which cannot be a plain multisig member`);
+  }
+  return pk;
 }

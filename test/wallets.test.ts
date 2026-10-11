@@ -1,7 +1,7 @@
 import { toBase64 } from '@mysten/sui/utils';
 import type { Wallet, WalletAccount } from '@mysten/wallet-standard';
 import { describe, expect, it } from 'vitest';
-import { accountPublicKey, isSuiAccount, isSuiWallet, schemeName } from '../src/shared/wallets.js';
+import { accountPublicKey, isSuiAccount, isSuiWallet, publicKeyFromMessageSignature, schemeName } from '../src/shared/wallets.js';
 import { desktopKey, phoneKey } from './fixtures.js';
 
 const SUI_PK = desktopKey.getPublicKey();
@@ -62,5 +62,20 @@ describe('Sui filters', () => {
     expect(isSuiAccount(account(SUI_PK.toRawBytes()))).toBe(true);
     expect(isSuiAccount(account(SUI_PK.toRawBytes(), ADDRESS, []))).toBe(true);
     expect(isSuiAccount(account(SUI_PK.toRawBytes(), 'C3FMZq', ['solana:mainnet']))).toBe(false);
+  });
+});
+
+describe('publicKeyFromMessageSignature', () => {
+  const message = new TextEncoder().encode('Reveal my public key for a multisig setup. This is not a transaction.');
+
+  it('recovers the key from a personal-message signature', async () => {
+    const { signature } = await desktopKey.signPersonalMessage(message);
+    const pk = await publicKeyFromMessageSignature(message, signature, ADDRESS);
+    expect(pk.toSuiPublicKey()).toBe(EXPECTED);
+  });
+
+  it('refuses a signature from another account', async () => {
+    const { signature } = await phoneKey.signPersonalMessage(message);
+    await expect(publicKeyFromMessageSignature(message, signature, ADDRESS)).rejects.toThrow('Public key bytes do not match the provided address');
   });
 });

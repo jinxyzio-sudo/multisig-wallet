@@ -7,13 +7,15 @@ import { ReadonlyWalletAccount, registerWallet, type Wallet } from '@mysten/wall
 
 declare const __MOCK_SEED__: number;
 declare const __MOCK_NAME__: string;
+/** When true, account.publicKey is garbage, like OKX hands out. */
+declare const __MOCK_BAD_PK__: boolean;
 
 const key = Ed25519Keypair.fromSecretKey(new Uint8Array(32).fill(__MOCK_SEED__));
 const account = new ReadonlyWalletAccount({
   address: key.toSuiAddress(),
-  publicKey: key.getPublicKey().toRawBytes(),
+  publicKey: __MOCK_BAD_PK__ ? new Uint8Array(32).fill(7) : key.getPublicKey().toRawBytes(),
   chains: ['sui:localnet'],
-  features: ['sui:signTransaction'],
+  features: ['sui:signTransaction', 'sui:signPersonalMessage'],
 });
 const signed: string[] = [];
 (window as unknown as { __mockSigned: string[] }).__mockSigned = signed;
@@ -36,6 +38,10 @@ const wallet: Wallet = {
         signed.push(toBase64(bytes));
         return { bytes: toBase64(bytes), signature };
       },
+    },
+    'sui:signPersonalMessage': {
+      version: '1.1.0',
+      signPersonalMessage: async (input: { message: Uint8Array }) => key.signPersonalMessage(input.message),
     },
   },
 };

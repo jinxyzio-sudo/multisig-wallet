@@ -32,8 +32,9 @@ execFileSync('node', ['build.mjs', '--extension'], {
 });
 execFileSync('node', ['build.mjs', '--phone', '--local'], { cwd: ROOT, stdio: 'inherit' });
 const common = { bundle: true, format: 'iife', target: ['chrome111'], logLevel: 'warning' };
-await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-desktop-wallet.js'), define: { __MOCK_SEED__: '1', __MOCK_NAME__: '"Mock Slush"' } });
-await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-phone-wallet.js'), define: { __MOCK_SEED__: '2', __MOCK_NAME__: '"Mock Slush Mobile"' } });
+await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-desktop-wallet.js'), define: { __MOCK_SEED__: '1', __MOCK_NAME__: '"Mock Slush"', __MOCK_BAD_PK__: 'false' } });
+await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-phone-wallet.js'), define: { __MOCK_SEED__: '2', __MOCK_NAME__: '"Mock Slush Mobile"', __MOCK_BAD_PK__: 'false' } });
+await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-okx-wallet.js'), define: { __MOCK_SEED__: '2', __MOCK_NAME__: '"Mock OKX"', __MOCK_BAD_PK__: 'true' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/decoy-wallet.ts')], outfile: join(OUT, 'decoy-desktop-wallet.js'), define: { __MOCK_NAME__: '"Mock Slush"' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/decoy-wallet.ts')], outfile: join(OUT, 'decoy-phone-wallet.js'), define: { __MOCK_NAME__: '"Mock Slush Mobile"' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/dapp.ts')], outfile: join(OUT, 'dapp.js') });
@@ -150,6 +151,17 @@ try {
   await setup.getByText('Public key (ED25519)').waitFor({ timeout: 15_000 });
   await setup.getByText('AIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOU').waitFor();
   step('setup page offers only the Sui wallet entry and shows its public key');
+
+  // A wallet whose account.publicKey does not match its address: read the key from a signed message.
+  const okx = await context.newPage();
+  await okx.addInitScript({ path: join(OUT, 'mock-okx-wallet.js') });
+  await okx.goto('http://127.0.0.1:8790/phone/setup.html');
+  await okx.getByRole('button', { name: 'Connect Mock OKX' }).click();
+  await okx.getByText('This wallet did not hand out a public key that matches this address.').waitFor({ timeout: 15_000 });
+  await okx.getByRole('button', { name: 'Sign a message to read the key' }).click();
+  await okx.getByText('AIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOU').waitFor({ timeout: 15_000 });
+  await okx.getByText('Read from a signed message: the wallet did not expose a matching key.').waitFor();
+  step('wallet with a mismatching public key: key recovered from a signed message');
 
   console.log('\nBROWSER E2E PASSED');
 } finally {
