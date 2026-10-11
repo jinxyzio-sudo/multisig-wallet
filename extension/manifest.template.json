@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Sui Multisig Wallet",
+  "version": "0.1.0",
+  "description": "Use a Sui native multisig from any dApp. Holds no keys.",
+  "minimum_chrome_version": "111",
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "permissions": ["storage"],
+  "content_security_policy": {
+    "extension_pages": "__CSP__"
+  }
+}

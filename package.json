@@ -1,0 +1,30 @@
+{
+  "name": "multisig-wallet",
+  "version": "1.0.0",
+  "description": "Use a Sui native multisig from any dApp. Chrome extension + phone signer page + relay. Holds no keys.",
+  "scripts": {
+    "test": "vitest run",
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p relay/tsconfig.json",
+    "address": "node scripts/address.mjs",
+    "test:e2e": "E2E_LOCALNET=1 vitest run test/e2e-localnet.test.ts",
+    "test:browser": "node test/browser/run.mjs"
+  },
+  "license": "MIT",
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "@mysten/sui": "2.33.1",
+    "@mysten/wallet-standard": "0.21.30",
+    "qrcode-generator": "2.0.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260927.1",
+    "@types/chrome": "0.3.0",
+    "@types/node": "24.19.0",
+    "esbuild": "0.28.2",
+    "playwright": "1.63.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}

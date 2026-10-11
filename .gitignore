@@ -1,0 +1,9 @@
+node_modules/
+extension/dist/
+config/wallet.json
+.wrangler/
+*.log
+.DS_Store
+test/browser/.ext/
+test/browser/.build/
+phone/dist-local/

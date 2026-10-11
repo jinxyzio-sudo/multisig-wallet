@@ -1,0 +1,16 @@
+{
+  "network": "mainnet",
+  "multisig": {
+    "threshold": 2,
+    "members": [
+      { "role": "desktop", "label": "Desktop (browser wallet)", "weight": 1, "publicKey": "AAAA...replace with publicBase64Key" },
+      { "role": "phone", "label": "Phone (wallet app)", "weight": 1, "publicKey": "AAAA...replace" },
+      { "role": "backup", "label": "Paper backup", "weight": 1, "publicKey": "AAAA...replace" }
+    ]
+  },
+  "relayUrl": "https://sui-multisig-relay.<your-subdomain>.workers.dev",
+  "phoneUrl": "https://jinxyzio-sudo.github.io/multisig-wallet/",
+  "desktopWallet": "Slush",
+  "phoneWallet": "slush",
+  "knownPackages": {}
+}

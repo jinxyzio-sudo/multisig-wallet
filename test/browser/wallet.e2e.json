@@ -1,0 +1,16 @@
+{
+  "network": "localnet",
+  "multisig": {
+    "threshold": 2,
+    "members": [
+      { "role": "desktop", "label": "Desktop (mock)", "weight": 1, "publicKey": "AIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29c" },
+      { "role": "phone", "label": "Phone (mock)", "weight": 1, "publicKey": "AIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOU" },
+      { "role": "backup", "label": "Backup", "weight": 1, "publicKey": "AO1JKMYo0cLG6ukDOJBZlWEpWSc6XGP5NjbBRhSshzfR" }
+    ]
+  },
+  "relayUrl": "http://127.0.0.1:8788",
+  "phoneUrl": "http://127.0.0.1:8790/phone/",
+  "desktopWallet": "Mock Slush",
+  "phoneWallet": "plain",
+  "knownPackages": {}
+}
