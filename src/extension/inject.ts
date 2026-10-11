@@ -25,6 +25,7 @@ import {
 } from '@mysten/wallet-standard';
 import { chainOf } from '../shared/config.js';
 import { loadMultisig } from '../shared/multisig.js';
+import { isSuiWallet } from '../shared/wallets.js';
 import { CHANNEL, type Envelope, type Mode, type PageEvent, type PageRequest, type SignResult } from './messages.js';
 
 const config = __WALLET_CONFIG__;
@@ -64,7 +65,7 @@ function send(message: PageRequest): Promise<PageEvent> {
 function findDesktopWallet(): WalletWithFeatures<Partial<SuiWalletFeatures> & StandardConnectFeature> | undefined {
   return getWallets()
     .get()
-    .find((w) => w.name === config.desktopWallet && 'standard:connect' in w.features) as
+    .find((w) => w.name === config.desktopWallet && isSuiWallet(w)) as
     | WalletWithFeatures<Partial<SuiWalletFeatures> & StandardConnectFeature>
     | undefined;
 }

@@ -9,6 +9,7 @@ import { loadMultisig, verifyMemberSignature, type Multisig } from '../shared/mu
 import { getSession, parsePhoneHash, putPhoneSignature } from '../shared/relay-client.js';
 import { coinInfoLookup, createClient, simulate } from '../shared/rpc.js';
 import { h, hasDanger, renderReport } from '../shared/ui.js';
+import { isSuiWallet } from '../shared/wallets.js';
 
 const app = document.getElementById('app')!;
 const statusEl = h('div', { class: 'status' }, 'Loading…');
@@ -87,7 +88,7 @@ async function findSigner(address: string): Promise<{ wallet: SigningWallet; acc
   const wanted = normalizeSuiAddress(address);
   const wallets = getWallets()
     .get()
-    .filter((w) => 'standard:connect' in w.features && ('sui:signTransaction' in w.features || 'sui:signTransactionBlock' in w.features)) as SigningWallet[];
+    .filter((w) => isSuiWallet(w) && !w.name.startsWith('Sui Multisig')) as SigningWallet[];
   if (wallets.length === 0) throw new Error('No Sui wallet found. Open this page inside your wallet app browser.');
   for (const wallet of wallets) {
     let account = wallet.accounts.find((a) => normalizeSuiAddress(a.address) === wanted);

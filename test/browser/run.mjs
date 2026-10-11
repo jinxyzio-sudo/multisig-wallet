@@ -34,6 +34,8 @@ execFileSync('node', ['build.mjs', '--phone', '--local'], { cwd: ROOT, stdio: 'i
 const common = { bundle: true, format: 'iife', target: ['chrome111'], logLevel: 'warning' };
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-desktop-wallet.js'), define: { __MOCK_SEED__: '1', __MOCK_NAME__: '"Mock Slush"' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-phone-wallet.js'), define: { __MOCK_SEED__: '2', __MOCK_NAME__: '"Mock Slush Mobile"' } });
+await build({ ...common, entryPoints: [join(ROOT, 'test/browser/decoy-wallet.ts')], outfile: join(OUT, 'decoy-desktop-wallet.js'), define: { __MOCK_NAME__: '"Mock Slush"' } });
+await build({ ...common, entryPoints: [join(ROOT, 'test/browser/decoy-wallet.ts')], outfile: join(OUT, 'decoy-phone-wallet.js'), define: { __MOCK_NAME__: '"Mock Slush Mobile"' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/dapp.ts')], outfile: join(OUT, 'dapp.js') });
 await build({ bundle: true, format: 'esm', platform: 'node', logLevel: 'warning', entryPoints: [join(ROOT, 'relay/src/node-server.ts')], outfile: join(OUT, 'relay.mjs') });
 
@@ -74,8 +76,8 @@ try {
   const dapp = await context.newPage();
   await dapp.goto('http://127.0.0.1:8790/dapp.html');
   await dapp.waitForFunction(() => window.dapp?.walletNames().some((n) => n.startsWith('Sui Multisig')), null, { timeout: 15_000 });
-  assert.deepEqual(await dapp.evaluate(() => window.dapp.walletNames()), ['Sui Multisig 2/3', 'Mock Slush']);
-  step('extension registered "Sui Multisig 2/3" next to the desktop wallet');
+  assert.deepEqual(await dapp.evaluate(() => window.dapp.walletNames()), ['Sui Multisig 2/3', 'Mock Slush', 'Mock Slush', 'Mock Slush']);
+  step('extension registered "Sui Multisig 2/3" next to the desktop wallet and two same-name decoys');
 
   // Connect
   let windowPromise = approvalWindow();
@@ -106,6 +108,7 @@ try {
   step('Desktop wallet signed; approval window shows the phone link');
 
   const phone = await context.newPage();
+  await phone.addInitScript({ path: join(OUT, 'decoy-phone-wallet.js') });
   await phone.addInitScript({ path: join(OUT, 'mock-phone-wallet.js') });
   await phone.goto(link);
   await phone.getByText(MULTISIG).waitFor({ timeout: 15_000 });
@@ -135,6 +138,18 @@ try {
   await phone2.getByText('no such session').waitFor({ timeout: 15_000 });
   assert.equal(await phone2.getByRole('button', { name: 'This is my multisig, trust it' }).count(), 0);
   step('finished session is gone from the relay');
+
+  // Setup page: only the Sui entry is offered, and it shows the real public key.
+  const setup = await context.newPage();
+  await setup.addInitScript({ path: join(OUT, 'decoy-phone-wallet.js') });
+  await setup.addInitScript({ path: join(OUT, 'mock-phone-wallet.js') });
+  await setup.goto('http://127.0.0.1:8790/phone/setup.html');
+  await setup.getByRole('button', { name: 'Connect Mock Slush Mobile' }).waitFor({ timeout: 15_000 });
+  assert.equal(await setup.getByRole('button', { name: 'Connect Mock Slush Mobile' }).count(), 1);
+  await setup.getByRole('button', { name: 'Connect Mock Slush Mobile' }).click();
+  await setup.getByText('Public key (ED25519)').waitFor({ timeout: 15_000 });
+  await setup.getByText('AIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOU').waitFor();
+  step('setup page offers only the Sui wallet entry and shows its public key');
 
   console.log('\nBROWSER E2E PASSED');
 } finally {
