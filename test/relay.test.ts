@@ -99,7 +99,7 @@ describe('phone links', () => {
 
   it('wraps the page in wallet deep links', () => {
     expect(walletDeepLink('slush', pageUrl)).toBe(`https://my.slush.app/browse/${encodeURIComponent(pageUrl)}`);
-    expect(walletDeepLink('okx', pageUrl)).toBe(`okx://wallet/dapp/url?dappUrl=${encodeURIComponent(pageUrl)}`);
+    expect(walletDeepLink('okx', pageUrl)).toBe(pageUrl);
     expect(walletDeepLink('plain', pageUrl)).toBe(pageUrl);
   });
 

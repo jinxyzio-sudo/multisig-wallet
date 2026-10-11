@@ -3,7 +3,7 @@
 Use a Sui native 2-of-3 multisig from any dApp, like a normal browser wallet.
 
 - **Desktop key**: an account in your browser wallet (Slush or OKX extension).
-- **Phone key**: an account in your phone wallet (Slush or OKX app).
+- **Phone key**: an account in the OKX app (Slush's app blocks the signer page, see Known gaps).
 - **Backup key**: a recovery phrase on paper. Only used when a device is lost.
 
 On a dApp you pick **Sui Multisig 2/3** in the wallet list. When the dApp asks for a signature:
@@ -126,4 +126,4 @@ Known gaps:
 
 - `signPersonalMessage` (login signatures) is not supported yet.
 - Legacy `signTransactionBlock` dApps are not supported.
-- The Slush deep link path (`my.slush.app/browse/...`) and OKX's `okx://wallet/dapp/url` link are not verified on a device yet. The approval window always shows a plain link as a fallback.
+- Slush's mobile app hard-blocks the signer page on github.io with a risk warning that cannot be skipped. Use the OKX app on the phone (`"phoneWallet": "okx"`): scan the QR code with OKX's own scanner, which opens the page in its dApp browser.

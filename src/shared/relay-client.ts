@@ -84,7 +84,9 @@ export function walletDeepLink(wallet: PhoneWallet, pageUrl: string): string {
     case 'slush':
       return `https://my.slush.app/browse/${encodeURIComponent(pageUrl)}`;
     case 'okx':
-      return `okx://wallet/dapp/url?dappUrl=${encodeURIComponent(pageUrl)}`;
+      // OKX has no documented link into its dApp browser, but its in-app scanner opens https
+      // links there (checked on a phone, 2026-10). So the QR carries the plain URL.
+      return pageUrl;
     case 'plain':
       return pageUrl;
   }

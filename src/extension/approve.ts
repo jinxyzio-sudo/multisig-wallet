@@ -100,20 +100,27 @@ function renderQr(link: string, plainUrl: string): HTMLElement {
     return qr.createDataURL(4, 2);
   };
   const img = h('img', { src: make(link), alt: 'Scan with your phone' }) as HTMLImageElement;
-  const toggle = h('a', { href: '#' }, 'QR does not open the wallet? Show a plain link instead');
-  let plain = false;
-  toggle.addEventListener('click', (e) => {
-    e.preventDefault();
-    plain = !plain;
-    img.src = make(plain ? plainUrl : link);
-    toggle.textContent = plain ? 'Show the wallet deep link QR again' : 'QR does not open the wallet? Show a plain link instead';
-  });
+  let hint: HTMLElement;
+  if (link === plainUrl) {
+    // A plain URL scanned with the phone camera opens the system browser, which has no wallet.
+    hint = h('p', { class: 'small muted' }, "Scan with the wallet app's own scanner, not the phone camera.");
+  } else {
+    const toggle = h('a', { href: '#' }, 'QR does not open the wallet? Show a plain link instead');
+    let plain = false;
+    toggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      plain = !plain;
+      img.src = make(plain ? plainUrl : link);
+      toggle.textContent = plain ? 'Show the wallet deep link QR again' : 'QR does not open the wallet? Show a plain link instead';
+    });
+    hint = h('p', { class: 'small muted' }, toggle);
+  }
   return h(
     'div',
     { class: 'card' },
     h('h3', {}, `Scan with your phone (${phoneMember.label})`),
     h('div', { class: 'qr' }, img),
-    h('p', { class: 'small muted' }, toggle),
+    hint,
     h('p', { class: 'small muted' }, 'Or open on the phone: ', h('a', { id: 'phone-link', href: plainUrl, target: '_blank', rel: 'noreferrer' }, plainUrl)),
   );
 }

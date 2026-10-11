@@ -1,0 +1,49 @@
+DEPLOY THE RELAY TO CLOUDFLARE WORKERS (free plan)
+==================================================
+
+1. Account (browser)
+--------------------
+Sign up at https://dash.cloudflare.com/sign-up (free plan, no card needed).
+
+Then open "Workers & Pages" in the left menu. The first time, Cloudflare asks you to pick a
+workers.dev subdomain. It becomes part of the relay URL:
+
+    https://sui-multisig-relay.<subdomain>.workers.dev
+
+Pick something that says nothing about you (random letters are fine). You can change it later
+under Workers & Pages -> your subdomain.
+
+
+2. Log in from the terminal (opens the browser, click Allow)
+------------------------------------------------------------
+cd relay        # from the repository root
+npx wrangler@4.142.0 login
+
+
+3. Deploy
+---------
+npx wrangler@4.142.0 deploy
+
+The last lines print the URL, e.g. https://sui-multisig-relay.<subdomain>.workers.dev
+
+
+4. Check it answers (expect: {"error":"no such session"})
+-----------------------------------------------------------
+curl https://sui-multisig-relay.<subdomain>.workers.dev/v1/session/0123456789abcdef0123456789abcdef
+
+
+5. Use it
+---------
+Put the URL in config/wallet.json as "relayUrl", then rebuild and reload the extension:
+
+cd ..           # back to the repository root
+npm run build
+
+
+Notes
+-----
+- The relay only sees unsigned transaction bytes and signatures. Both are useless to anyone
+  else: signatures only work for those exact bytes, and the transaction still needs the other
+  key. Sessions delete themselves after 10 minutes.
+- Free plan limits are far above what one person uses: one transaction is about 50 requests.
+- To remove it later: npx wrangler@4.142.0 delete
