@@ -4,7 +4,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import { fromBase64, normalizeSuiAddress, toBase64 } from '@mysten/sui/utils';
 import qrcode from 'qrcode-generator';
 import { analyzeTransaction, type Report } from '../shared/analyze.js';
-import { combineSignatures, loadMultisig, verifyMemberSignature } from '../shared/multisig.js';
+import { combineSignatures, loadMultisig, signingMember } from '../shared/multisig.js';
 import { createSession, deleteSession, getPhoneSignature, newSessionId, phonePageUrl, walletDeepLink } from '../shared/relay-client.js';
 import { coinInfoLookup, createClient, simulate } from '../shared/rpc.js';
 import { h, hasDanger, renderReport, shortAddress } from '../shared/ui.js';
@@ -12,8 +12,6 @@ import type { BackgroundToWindow, Mode, SignResult, WindowToBackground } from '.
 
 const config = __WALLET_CONFIG__;
 const multisig = loadMultisig(config.multisig);
-const desktopMember = multisig.memberByRole('desktop');
-const phoneMember = multisig.memberByRole('phone');
 const client = createClient(config.network);
 const coinInfo = coinInfoLookup(client);
 const PHONE_TIMEOUT_MS = 9 * 60 * 1000;
@@ -68,7 +66,7 @@ let desktopWaiter: { resolve: (v: { bytes: string; signature: string }) => void;
 function requestDesktopSignature(txBytes: Uint8Array): Promise<{ bytes: string; signature: string }> {
   return new Promise((resolve, reject) => {
     desktopWaiter = { resolve, reject };
-    send({ type: 'desktop-sign', requestId, txBytes: toBase64(txBytes), desktopAddress: desktopMember.address });
+    send({ type: 'desktop-sign', requestId, txBytes: toBase64(txBytes), memberAddresses: multisig.members.map((m) => m.address) });
   });
 }
 
@@ -118,7 +116,7 @@ function renderQr(link: string, plainUrl: string): HTMLElement {
   return h(
     'div',
     { class: 'card' },
-    h('h3', {}, `Scan with your phone (${phoneMember.label})`),
+    h('h3', {}, 'Scan with your phone wallet'),
     h('div', { class: 'qr' }, img),
     hint,
     h('p', { class: 'small muted' }, 'Or open on the phone: ', h('a', { id: 'phone-link', href: plainUrl, target: '_blank', rel: 'noreferrer' }, plainUrl)),
@@ -173,7 +171,7 @@ async function runTransaction(origin: string, mode: Mode, txJson: string): Promi
   }
   actions.replaceChildren(cancelButton());
 
-  setStatus(`Approve in ${config.desktopWallet} (${desktopMember.label})…`);
+  setStatus(`Approve in ${config.desktopWallet}…`);
   const desktop = await requestDesktopSignature(built);
   const canonical = fromBase64(desktop.bytes);
   if (!sameBytes(canonical, built)) {
@@ -187,7 +185,7 @@ async function runTransaction(origin: string, mode: Mode, txJson: string): Promi
       throw new Error('Signed transaction has a different sender');
     }
   }
-  await verifyMemberSignature(canonical, desktop.signature, desktopMember);
+  const desktopSigner = await signingMember(multisig, canonical, desktop.signature);
 
   setStatus('Sending to phone…');
   sessionId = newSessionId();
@@ -200,7 +198,7 @@ async function runTransaction(origin: string, mode: Mode, txJson: string): Promi
   });
   const pageUrl = phonePageUrl({ phoneUrl: config.phoneUrl, relayUrl: config.relayUrl, sessionId, network: config.network });
   actions.before(renderQr(walletDeepLink(config.phoneWallet, pageUrl), pageUrl));
-  setStatus(`Waiting for ${phoneMember.label}…`);
+  setStatus(`Signed by ${desktopSigner.label}. Waiting for the phone…`);
 
   const deadline = Date.now() + PHONE_TIMEOUT_MS;
   let phoneSignature: string | null = null;
@@ -214,7 +212,10 @@ async function runTransaction(origin: string, mode: Mode, txJson: string): Promi
     }
     if (!phoneSignature) await sleep(POLL_MS);
   }
-  await verifyMemberSignature(canonical, phoneSignature, phoneMember);
+  const phoneSigner = await signingMember(multisig, canonical, phoneSignature);
+  if (phoneSigner.address === desktopSigner.address) {
+    throw new Error('The phone signed with the same key as the browser. The same key on two devices defeats the multisig.');
+  }
   const signature = await combineSignatures(multisig, canonical, [desktop.signature, phoneSignature]);
   let result: SignResult = { bytes: toBase64(canonical), signature };
 

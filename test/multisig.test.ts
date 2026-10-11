@@ -1,7 +1,7 @@
 import { verifyTransactionSignature } from '@mysten/sui/verify';
 import { describe, expect, it } from 'vitest';
 import { validateMultisigConfig } from '../src/shared/config.js';
-import { combineSignatures, loadMultisig, verifyMemberSignature } from '../src/shared/multisig.js';
+import { combineSignatures, loadMultisig, signingMember, verifyMemberSignature } from '../src/shared/multisig.js';
 import { backupKey, desktopKey, multisigConfig, offlineTxBytes, outsiderKey, phoneKey } from './fixtures.js';
 
 // Derived independently with:
@@ -98,5 +98,29 @@ describe('signatures', () => {
     const desktop = (await desktopKey.signTransaction(bytes)).signature;
     const outsider = (await outsiderKey.signTransaction(bytes)).signature;
     await expect(combineSignatures(ms, bytes, [desktop, outsider])).rejects.toThrow('Received signature from unknown public key');
+  });
+});
+
+describe('signingMember', () => {
+  const ms = loadMultisig(multisigConfig);
+
+  it('identifies whichever member signed, regardless of role', async () => {
+    const bytes = await offlineTxBytes(ms.address);
+    const fromBackup = await signingMember(ms, bytes, (await backupKey.signTransaction(bytes)).signature);
+    expect(fromBackup.role).toBe('backup');
+    expect(fromBackup.address).toBe(backupKey.toSuiAddress());
+    const fromPhone = await signingMember(ms, bytes, (await phoneKey.signTransaction(bytes)).signature);
+    expect(fromPhone.index).toBe(1);
+  });
+
+  it('rejects an outsider and a signature over other bytes', async () => {
+    const bytes = await offlineTxBytes(ms.address, 1000);
+    await expect(signingMember(ms, bytes, (await outsiderKey.signTransaction(bytes)).signature)).rejects.toThrow(
+      `signature is from ${outsiderKey.toSuiAddress()}, which is not a member of this multisig`,
+    );
+    const other = await offlineTxBytes(ms.address, 2000);
+    await expect(signingMember(ms, bytes, (await desktopKey.signTransaction(other)).signature)).rejects.toThrow(
+      'signature does not verify over these transaction bytes',
+    );
   });
 });

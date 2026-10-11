@@ -20,7 +20,7 @@ export type PageRequest =
 /** Extension -> page script. */
 export type PageEvent =
   | { type: 'connect-result'; requestId: string; approved: boolean }
-  | { type: 'desktop-sign'; requestId: string; txBytes: string; desktopAddress: string }
+  | { type: 'desktop-sign'; requestId: string; txBytes: string; memberAddresses: string[] }
   | { type: 'transaction-result'; requestId: string; ok: true; result: SignResult }
   | { type: 'transaction-result'; requestId: string; ok: false; message: string };
 
@@ -28,7 +28,7 @@ export type PageEvent =
 export type WindowToBackground =
   | { type: 'hello'; requestId: string }
   | { type: 'connect-decision'; requestId: string; approved: boolean }
-  | { type: 'desktop-sign'; requestId: string; txBytes: string; desktopAddress: string }
+  | { type: 'desktop-sign'; requestId: string; txBytes: string; memberAddresses: string[] }
   | { type: 'done'; requestId: string; ok: true; result: SignResult }
   | { type: 'done'; requestId: string; ok: false; message: string };
 

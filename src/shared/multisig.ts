@@ -75,3 +75,20 @@ export async function combineSignatures(ms: Multisig, txBytes: Uint8Array, signa
   }
   return combined;
 }
+
+/**
+ * Returns the member whose key produced `signature` over `txBytes`. Signing is role-agnostic:
+ * any member can sign on any device, as long as two different members sign.
+ */
+export async function signingMember(ms: Multisig, txBytes: Uint8Array, signature: string): Promise<Member> {
+  let signer: PublicKey;
+  try {
+    signer = await verifyTransactionSignature(txBytes, signature);
+  } catch {
+    throw new Error('signature does not verify over these transaction bytes');
+  }
+  const address = normalizeSuiAddress(signer.toSuiAddress());
+  const member = ms.members.find((m) => normalizeSuiAddress(m.address) === address);
+  if (!member) throw new Error(`signature is from ${address}, which is not a member of this multisig`);
+  return member;
+}

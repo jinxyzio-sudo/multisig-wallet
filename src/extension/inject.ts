@@ -62,26 +62,37 @@ function send(message: PageRequest): Promise<PageEvent> {
   });
 }
 
-function findDesktopWallet(): WalletWithFeatures<Partial<SuiWalletFeatures> & StandardConnectFeature> | undefined {
-  return getWallets()
+type SigningWallet = WalletWithFeatures<Partial<SuiWalletFeatures> & StandardConnectFeature>;
+
+/**
+ * Finds a browser wallet account that is a member of the multisig. Accounts the wallet already
+ * shares with this site are used without a prompt; otherwise the configured wallet is asked.
+ */
+async function findDesktopSigner(memberAddresses: string[]): Promise<{ wallet: SigningWallet; account: WalletAccount }> {
+  const members = new Set(memberAddresses.map((a) => normalizeSuiAddress(a)));
+  const pick = (accounts: readonly WalletAccount[]) => accounts.find((a) => members.has(normalizeSuiAddress(a.address)));
+  const wallets = getWallets()
     .get()
-    .find((w) => w.name === config.desktopWallet && isSuiWallet(w)) as
-    | WalletWithFeatures<Partial<SuiWalletFeatures> & StandardConnectFeature>
-    | undefined;
+    .filter((w) => isSuiWallet(w) && !w.name.startsWith('Sui Multisig')) as SigningWallet[];
+  const preferred = wallets.filter((w) => w.name === config.desktopWallet);
+  for (const wallet of [...preferred, ...wallets.filter((w) => w.name !== config.desktopWallet)]) {
+    const account = pick(wallet.accounts);
+    if (account) return { wallet, account };
+  }
+  for (const wallet of preferred.length > 0 ? preferred : wallets) {
+    try {
+      const account = pick((await wallet.features['standard:connect'].connect()).accounts);
+      if (account) return { wallet, account };
+    } catch {
+      // wallet refused or failed; try the next one
+    }
+  }
+  throw new Error(`No browser wallet shares a member account of this multisig. Connect one in ${config.desktopWallet} for this site, then retry.`);
 }
 
-async function desktopSign(id: string, txBytes: string, desktopAddress: string): Promise<void> {
+async function desktopSign(id: string, txBytes: string, memberAddresses: string[]): Promise<void> {
   try {
-    const wallet = findDesktopWallet();
-    if (!wallet) throw new Error(`${config.desktopWallet} is not available on this page`);
-    const wanted = normalizeSuiAddress(desktopAddress);
-    const match = (accounts: readonly WalletAccount[]) => accounts.find((a) => normalizeSuiAddress(a.address) === wanted);
-    let account = match(wallet.accounts);
-    if (!account) {
-      const connected = await wallet.features['standard:connect'].connect();
-      account = match(connected.accounts);
-    }
-    if (!account) throw new Error(`Connect account ${wanted} in ${config.desktopWallet} to this site, then retry`);
+    const { wallet, account } = await findDesktopSigner(memberAddresses);
     const tx = Transaction.from(fromBase64(txBytes));
     const signed = await signTransaction(wallet, { transaction: { toJSON: () => tx.toJSON() }, account, chain });
     post({ type: 'desktop-signed', requestId: id, bytes: signed.bytes, signature: signed.signature });
@@ -96,7 +107,7 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (data?.channel !== CHANNEL || data.direction !== 'to-page') return;
   const message = data.message;
   if (message.type === 'desktop-sign') {
-    if (ownTransactions.has(message.requestId)) void desktopSign(message.requestId, message.txBytes, message.desktopAddress);
+    if (ownTransactions.has(message.requestId)) void desktopSign(message.requestId, message.txBytes, message.memberAddresses);
     return;
   }
   const waiter = waiters.get(message.requestId);

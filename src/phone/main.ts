@@ -5,10 +5,10 @@ import { fromBase64, normalizeSuiAddress } from '@mysten/sui/utils';
 import { getWallets, signTransaction, type StandardConnectFeature, type SuiWalletFeatures, type WalletAccount, type WalletWithFeatures } from '@mysten/wallet-standard';
 import { analyzeTransaction } from '../shared/analyze.js';
 import { chainOf, isNetwork, type MultisigConfig } from '../shared/config.js';
-import { loadMultisig, verifyMemberSignature, type Multisig } from '../shared/multisig.js';
+import { loadMultisig, signingMember, type Member, type Multisig } from '../shared/multisig.js';
 import { getSession, parsePhoneHash, putPhoneSignature } from '../shared/relay-client.js';
 import { coinInfoLookup, createClient, simulate } from '../shared/rpc.js';
-import { h, hasDanger, renderReport } from '../shared/ui.js';
+import { h, hasDanger, renderReport, shortAddress } from '../shared/ui.js';
 import { isSuiWallet } from '../shared/wallets.js';
 
 const app = document.getElementById('app')!;
@@ -84,25 +84,31 @@ async function checkTrust(network: string, ms: Multisig, config: MultisigConfig)
 
 type SigningWallet = WalletWithFeatures<Partial<SuiWalletFeatures> & StandardConnectFeature>;
 
-async function findSigner(address: string): Promise<{ wallet: SigningWallet; account: WalletAccount }> {
-  const wanted = normalizeSuiAddress(address);
+/** Finds a member account in this phone's wallet, other than the one that already signed. */
+async function findSigner(ms: Multisig, alreadySigned: Member): Promise<{ wallet: SigningWallet; account: WalletAccount }> {
+  const others = new Set(ms.members.filter((m) => m.address !== alreadySigned.address).map((m) => normalizeSuiAddress(m.address)));
   const wallets = getWallets()
     .get()
     .filter((w) => isSuiWallet(w) && !w.name.startsWith('Sui Multisig')) as SigningWallet[];
-  if (wallets.length === 0) throw new Error('No Sui wallet found. Open this page inside your wallet app browser.');
+  if (wallets.length === 0) throw new Error('No Sui wallet found. Open this page with your wallet app scanner.');
+  let sawSameKey = false;
   for (const wallet of wallets) {
-    let account = wallet.accounts.find((a) => normalizeSuiAddress(a.address) === wanted);
-    if (!account) {
+    let accounts = wallet.accounts;
+    if (!accounts.some((a) => others.has(normalizeSuiAddress(a.address)))) {
       try {
-        const connected = await wallet.features['standard:connect'].connect();
-        account = connected.accounts.find((a) => normalizeSuiAddress(a.address) === wanted);
+        accounts = (await wallet.features['standard:connect'].connect()).accounts;
       } catch {
         continue;
       }
     }
+    const account = accounts.find((a) => others.has(normalizeSuiAddress(a.address)));
     if (account) return { wallet, account };
+    if (accounts.some((a) => normalizeSuiAddress(a.address) === normalizeSuiAddress(alreadySigned.address))) sawSameKey = true;
   }
-  throw new Error(`None of the wallets here exposes the phone key account ${wanted}. Switch to it in your wallet and retry.`);
+  if (sawSameKey) {
+    throw new Error(`This phone wallet holds the key that already signed on the computer (${alreadySigned.address}). The same key on two devices defeats the multisig: use a different member account here.`);
+  }
+  throw new Error('This wallet does not expose another member account of the multisig. Switch to it in the wallet and retry.');
 }
 
 async function main(): Promise<void> {
@@ -121,9 +127,7 @@ async function main(): Promise<void> {
   await checkTrust(network, ms, session.multisig);
 
   const txBytes = fromBase64(session.txBytes);
-  const desktopMember = ms.memberByRole('desktop');
-  const phoneMember = ms.memberByRole('phone');
-  await verifyMemberSignature(txBytes, session.desktopSignature, desktopMember);
+  const desktopSigner = await signingMember(ms, txBytes, session.desktopSignature);
 
   setStatus('Simulating on this phone…');
   const report = await analyzeTransaction({
@@ -139,25 +143,26 @@ async function main(): Promise<void> {
   const danger = hasDanger(report) || !report.simulationOk;
   body.append(
     h('div', { class: 'card' },
-      h('p', { class: 'small muted' }, `✓ ${desktopMember.label} already signed exactly these bytes`),
+      h('p', { class: 'small muted' }, `✓ ${desktopSigner.label} (${shortAddress(desktopSigner.address)}) already signed exactly these bytes`),
       h('p', { class: 'addr muted' }, `${ms.address} · ${network} · ${session.mode === 'execute' ? 'Computer submits after you sign' : 'dApp submits after you sign'}`),
       renderReport(report)),
   );
 
-  const sign = h('button', { class: danger ? 'danger' : '' }, danger ? 'I understand, sign anyway' : `Sign with ${phoneMember.label}`);
+  const sign = h('button', { class: danger ? 'danger' : '' }, danger ? 'I understand, sign anyway' : 'Sign with this phone');
   body.append(sign);
   setStatus(danger ? 'Review the warnings before signing' : 'Review and sign', danger ? 'error' : '');
   await waitForClick(sign);
   sign.setAttribute('disabled', 'true');
 
   setStatus('Approve in your wallet…');
-  const { wallet, account } = await findSigner(phoneMember.address);
+  const { wallet, account } = await findSigner(ms, desktopSigner);
   const tx = Transaction.from(txBytes);
   const signed = await signTransaction(wallet, { transaction: { toJSON: () => tx.toJSON() }, account, chain: chainOf(network) });
   if (signed.bytes !== session.txBytes) {
     throw new Error('The wallet changed the transaction, so the two signatures would not match. Not sending.');
   }
-  await verifyMemberSignature(txBytes, signed.signature, phoneMember);
+  const phoneSigner = await signingMember(ms, txBytes, signed.signature);
+  if (phoneSigner.address === desktopSigner.address) throw new Error('Signed with the same key as the computer. Not sending.');
   await putPhoneSignature(params.relayUrl, params.sessionId, signed.signature);
   sign.remove();
   setStatus('Signed. Your computer will finish the transaction.', 'done');

@@ -125,7 +125,7 @@ async function onWindow(win: chrome.runtime.Port, message: WindowToBackground): 
       return;
     case 'desktop-sign':
       if (entry.window !== win) return;
-      toPage(entry, { type: 'desktop-sign', requestId: message.requestId, txBytes: message.txBytes, desktopAddress: message.desktopAddress });
+      toPage(entry, { type: 'desktop-sign', requestId: message.requestId, txBytes: message.txBytes, memberAddresses: message.memberAddresses });
       return;
     case 'done':
       if (entry.window !== win || entry.settled) return;

@@ -34,6 +34,7 @@ execFileSync('node', ['build.mjs', '--phone', '--local'], { cwd: ROOT, stdio: 'i
 const common = { bundle: true, format: 'iife', target: ['chrome111'], logLevel: 'warning' };
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-desktop-wallet.js'), define: { __MOCK_SEED__: '1', __MOCK_NAME__: '"Mock Slush"', __MOCK_BAD_PK__: 'false' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-phone-wallet.js'), define: { __MOCK_SEED__: '2', __MOCK_NAME__: '"Mock Slush Mobile"', __MOCK_BAD_PK__: 'false' } });
+await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-same-key-wallet.js'), define: { __MOCK_SEED__: '1', __MOCK_NAME__: '"Mock Same Key"', __MOCK_BAD_PK__: 'false' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/mock-wallet.ts')], outfile: join(OUT, 'mock-okx-wallet.js'), define: { __MOCK_SEED__: '2', __MOCK_NAME__: '"Mock OKX"', __MOCK_BAD_PK__: 'true' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/decoy-wallet.ts')], outfile: join(OUT, 'decoy-desktop-wallet.js'), define: { __MOCK_NAME__: '"Mock Slush"' } });
 await build({ ...common, entryPoints: [join(ROOT, 'test/browser/decoy-wallet.ts')], outfile: join(OUT, 'decoy-phone-wallet.js'), define: { __MOCK_NAME__: '"Mock Slush Mobile"' } });
@@ -108,14 +109,22 @@ try {
   assert.match(link, /^http:\/\/127\.0\.0\.1:8790\/phone\/#s=[0-9a-f]{32}&r=http%3A%2F%2F127\.0\.0\.1%3A8788&n=localnet$/);
   step('Desktop wallet signed; approval window shows the phone link');
 
+  // A phone wallet holding the same key that signed on the computer must be refused.
+  const sameKey = await context.newPage();
+  await sameKey.addInitScript({ path: join(OUT, 'mock-same-key-wallet.js') });
+  await sameKey.goto(link);
+  await sameKey.getByRole('button', { name: 'This is my multisig, trust it' }).click();
+  await sameKey.getByRole('button', { name: 'I understand, sign anyway' }).click();
+  await sameKey.getByText('This phone wallet holds the key that already signed on the computer').waitFor({ timeout: 15_000 });
+  step('phone wallet with the same key as the computer is refused');
+
   const phone = await context.newPage();
   await phone.addInitScript({ path: join(OUT, 'decoy-phone-wallet.js') });
   await phone.addInitScript({ path: join(OUT, 'mock-phone-wallet.js') });
   await phone.goto(link);
   await phone.getByText(MULTISIG).waitFor({ timeout: 15_000 });
-  await phone.getByRole('button', { name: 'This is my multisig, trust it' }).click();
   await phone.getByText(`${RECIPIENT} receives 0.1 SUI`).waitFor({ timeout: 15_000 });
-  await phone.getByText('✓ Desktop (mock) already signed exactly these bytes').waitFor();
+  await phone.getByText('✓ Key A (0x29dfbf…84390f) already signed exactly these bytes').waitFor();
   await phone.getByRole('button', { name: 'I understand, sign anyway' }).click();
   await phone.getByText('Signed. Your computer will finish the transaction.').waitFor({ timeout: 15_000 });
   step('phone page verified the desktop signature, simulated on its own, signed');
